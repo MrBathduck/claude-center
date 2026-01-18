@@ -1,0 +1,10 @@
+# Local settings (contains machine-specific paths)
+.claude/settings.local.json
+
+# Session-specific files
+.claude/SESSION_NOTES.md
+.claude/plans/
+
+# OS files
+.DS_Store
+Thumbs.db
