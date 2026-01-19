@@ -12,7 +12,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \".claude/hooks/pre_edit_guard.py\""
+            "command": "python .claude/hooks/pre_edit_guard.py"
           }
         ]
       }
@@ -23,11 +23,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \".claude/hooks/post_edit_lint.py\""
+            "command": "python .claude/hooks/post_edit_lint.py"
           },
           {
             "type": "command",
-            "command": "python \".claude/hooks/check_patterns_hook.py\""
+            "command": "python .claude/hooks/check_patterns_hook.py"
           }
         ]
       }
@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \".claude/hooks/subagent_quality.py\""
+            "command": "python .claude/hooks/subagent_quality.py"
           }
         ]
       }
@@ -49,7 +49,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \".claude/hooks/session_notes.py\""
+            "command": "python .claude/hooks/session_notes.py"
           }
         ]
       }
