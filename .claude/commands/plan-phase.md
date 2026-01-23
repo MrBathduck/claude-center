@@ -1,508 +1,365 @@
-You are an expert Phase Document Architect who transforms feature descriptions into comprehensive, structured phase documents. Your mission: Analyze requirements, identify affected codebase areas, design data models, define API endpoints, and produce implementation-ready phase documents.
+# Plan Phase Command
 
-<feature_description>
-$ARGUMENTS
+Transform a feature idea into a structured phase document ready for execution.
+
+<feature_description>  $ARGUMENTS
+
 </feature_description>
-
-## RULE 0: STRUCTURED OUTPUT, NO IMPLEMENTATION
-You create phase documents, not code. Your output is a complete phase document following the project's established format. Any attempt to write implementation code is a critical failure (-$1000).
-
-IMPORTANT: The phase document must be complete enough for @plan-execution to execute without ambiguity.
 
 ---
 
-## WORKFLOW PROTOCOL
+## RULE 0: Planning Only, No Implementation
 
-### STEP 0: Parse Input (MANDATORY)
+You design and document. You NEVER write implementation code. This command produces a phase document that `/plan-execution` will use.
 
-Analyze `$ARGUMENTS` to determine the input type:
+---
 
-**Type A: Direct Feature Description**
+## WORKFLOW OVERVIEW
+
+The plan-phase workflow involves multiple agents working together:
+
 ```
-Example: "User notification system with email and in-app alerts"
-Action: Extract requirements directly from description
+1. Architect Agent creates initial design (context gathering, structure)
+2. System Agent validates and refines (checks for conflicts with existing architecture)
+3. User reviews final plan
+4. If approved, plan-execution begins
 ```
 
-**Type B: Reference to Issues Document**
-```
-Example: "See Issues-&-Future features.md section: Calendar View"
-Action: Read the referenced section for requirements
-```
+Each step is mandatory. Do NOT proceed to the next step if the current step identifies blocking issues.
 
-**Type C: Incomplete/Ambiguous Description**
-```
-Example: "Add reports feature"
-Action: STOP and ask clarifying questions (see Step 1.5)
-```
+---
+
+## EXECUTION PROTOCOL
+
+### STEP 0: Mode Detection
+
+Assess the feature scope to determine workflow mode:
+
+| Mode | Scope | Approach |
+|------|-------|----------|
+| **Quick** | < 1 day, 1-3 files | Skip this command, use `/quick-fix` |
+| **Standard** | 1-5 days, 3-10 files | Create phase doc, single phase |
+| **Full** | > 5 days, 10+ files | Create phase doc with multiple subphases |
+
+If Quick mode is appropriate, inform the user and suggest `/quick-fix` instead.
 
 ### STEP 1: Context Gathering (MANDATORY)
 
-Delegate to Explore agent BEFORE designing:
+Before planning, gather context using the Explore agent:
 
 ```
-Task for Explore agent (subagent_type=Explore):
-Analyze the codebase for: [feature name]
-
-Questions to answer:
-1. What existing models/tables are related?
-2. What patterns exist for similar features?
-3. What routes/blueprints will be affected?
-4. What frontend patterns (templates, JS, SCSS) apply?
-5. What existing services can be reused?
-
-Return: File inventory, pattern summary, dependency map
+Use Task tool with:
+- subagent_type: "Explore"
+- prompt: "Analyze the codebase for implementing: [feature]
+  Questions:
+  1) What existing files/patterns relate to this feature?
+  2) What dependencies exist?
+  3) What tests cover related functionality?
+  4) What SCSS/JS modules might be affected?
+  5) Are there similar features to reference?
+  Return: File inventory, pattern summary, existing conventions"
 ```
 
-### STEP 1.5: Clarification Protocol
+### STEP 2: Check Feature Map for Conflicts
 
-If requirements are ambiguous, STOP and ask:
+Read `/docs/features/FEATURE_MAP.md` (if exists) to identify:
+- Shared state clusters this feature might touch
+- Critical paths that could be affected
+- Related features that need consideration
 
-```
-## Clarification Needed
+### STEP 3: System Validation (System Agent)
 
-Before I can create the phase document, I need clarity on:
+**This is Phase 2 of the workflow: System Agent validates the design.**
 
-1. **[Ambiguity 1]**: [Question]
-   - Option A: [interpretation 1]
-   - Option B: [interpretation 2]
+After context gathering and conflict check, invoke **System Agent** to:
+- Verify design doesn't conflict with existing architecture
+- Check for potential breaking changes
+- Identify cross-system interactions
+- Refine the phase plan if issues found
 
-2. **[Ambiguity 2]**: [Question]
-   - Option A: [interpretation 1]
-   - Option B: [interpretation 2]
-
-Please confirm your preferred options or provide additional context.
-```
-
-Wait for user response before proceeding.
-
-### STEP 2: Delegate to Architect (MANDATORY)
-
-After context gathering, delegate design work:
+The System Agent will edit the phase plan directly if conflicts are detected.
 
 ```
-Task for @architect:
-Design the feature: [feature name]
-
-Requirements Summary:
-- [Requirement 1]
-- [Requirement 2]
-- [Requirement 3]
-
-Existing Patterns Found (from Explore):
-- Models: [list relevant models]
-- Routes: [list relevant routes/blueprints]
-- Frontend: [list relevant templates/JS]
-
-Deliverables Needed:
-1. Data model design (new tables, modified tables)
-2. API endpoint specifications
-3. UI/UX requirements summary
-4. Component breakdown into deliverables
-5. Dependency identification
-6. Risk assessment
-
-Output Format: Use structured sections matching phase document format
+Use Task tool with:
+- subagent_type: "system-agent"
+- prompt: "Perform impact analysis for: [feature]
+  Check:
+  - System constraints (auth, data model, architecture)
+  - Existing ADRs that apply
+  - Affected features from FEATURE_MAP
+  - Technical Anchors needed
+  - Cross-system interactions and dependencies
+  - Potential breaking changes to existing features
+  Return: Impact report with PROCEED/BLOCK/PROCEED WITH CAUTION"
 ```
 
-### STEP 3: Assemble Phase Document
+**System Agent Response Handling:**
 
-Using the architect's design, create the phase document with ALL required sections.
+| Response | Action |
+|----------|--------|
+| PROCEED | Continue to STEP 4 |
+| PROCEED WITH CAUTION | Continue but document risks in phase plan |
+| BLOCK | Stop and report blocking issues to user |
 
----
+If system-agent returns BLOCK, stop and report the blocking issues to the user.
 
-## PHASE DOCUMENT TEMPLATE
+### Handling Conflicts
+
+If System Agent detects conflicts:
+1. System Agent adds `## Conflict Detected` section to phase plan
+2. Plan returns to Architect for review
+3. Architect either accepts resolution or proposes alternative
+4. User makes final decision on unresolved conflicts
+
+Do NOT proceed to implementation with unresolved conflicts.
+
+### STEP 4: Design the Phase Document
+
+Create the phase document following the template at `.claude/plans/_TEMPLATE-phase.md`.
+
+**Required sections:**
+1. YAML frontmatter (title, status: draft, created, author: architect-agent)
+2. Overview (2-3 sentences)
+3. Success Criteria (measurable, checkbox format)
+4. Dependencies (with ADR/notes references)
+5. Subphases with:
+   - Implementation Tasks (checkbox format)
+   - Primary Files (may expand during implementation)
+   - Edge Cases to handle
+   - Verification steps
+6. Quality Gates section
+7. Senior Developer Review section (placeholder)
+
+### STEP 5: Senior Developer Review (MANDATORY - Agent Step)
+
+**This is automatic, not a human review.**
+
+After drafting the phase document, adopt the persona of a senior developer who:
+- Hates the project and looks for any excuse to reject
+- Has seen every failure mode
+- Demands proof, not promises
+
+Review the document adversarially for:
+- **Weak spots**: Vague requirements, missing acceptance criteria
+- **Missing edge cases**: Error states, empty states, concurrent access
+- **Unrealistic scope**: Too much for one phase, hidden complexity
+- **Unaddressed failure modes**: What happens when X fails?
+- **Testing gaps**: Untestable requirements, missing integration tests
+- **Dependency risks**: External services, timing assumptions
+
+**Fix every issue you find.** Then document what you found and fixed in the "Senior Developer Review (Agent)" section:
 
 ```markdown
-# Phase [N]: [Feature Name]
+### Senior Developer Review (Agent)
+Reviewed: [DATE]
 
-**Status:** Not Started
-**Dependencies:** [List prerequisite phases or "None"]
-**Blocks:** [What phases this enables, or "None"]
+**Issues Found & Fixed:**
+- [Issue]: [How addressed]
+- [Issue]: [How addressed]
+```
+
+### STEP 6: Present to User
+
+Present the completed phase document to the user with:
+1. Summary of what's planned
+2. Key decisions made
+3. System Agent validation results (conflicts detected and resolved)
+4. Risks identified
+5. Senior Developer Review findings
+6. Next steps (Gemini verification, then `/plan-execution`)
+
+**Important:** If there are unresolved conflicts from System Agent validation, clearly highlight them and request user decision before proceeding.
 
 ---
+
+## PHASE DOCUMENT STRUCTURE
+
+```markdown
+---
+title: "Phase X.Y: [Feature Name]"
+status: draft
+created: YYYY-MM-DD
+updated: YYYY-MM-DD
+author: architect-agent
+tags:
+  - [feature-area]
+  - [ui | backend | database | integration]
+---
+
+# Phase X.Y: [Feature Name]
 
 ## Overview
 
-[1-2 sentences describing the feature and its value to users]
-
-**Core Workflow:**
-```
-[Step 1] --> [Step 2] --> [Step 3] --> [Final State]
-```
-
----
-
-## Table of Contents
-- [Overview](#overview)
-- [Checkpoints](#checkpoints)
-- [Deliverables](#deliverables)
-- [Database Changes](#database-changes)
-- [API Endpoints](#api-endpoints)
-- [UI/UX Requirements](#uiux-requirements)
-- [Success Criteria](#success-criteria)
-- [Out of Scope](#out-of-scope)
-- [Notes](#notes)
-
----
-
-## Checkpoints
-
-**Checkpoint 1:** After Deliverable #[N]
-- [Validation criteria 1]
-- [Validation criteria 2]
-- [Why this is a good stopping point]
-
-**Checkpoint 2:** After Deliverable #[N]
-- [Validation criteria]
-- [Why this is a good stopping point]
-
-**Recommended Sequence:**
-1 --> 2 --> **VALIDATE** --> 3 --> 4 --> **VALIDATE COMPLETE**
-
----
-
-## Deliverables
-
-### 1. [Deliverable Name]
-
-**What:**
-- [Specific functionality 1]
-- [Specific functionality 2]
-- [Specific functionality 3]
-
-**Acceptance Criteria:**
-- [ ] [Testable criterion 1]
-- [ ] [Testable criterion 2]
-- [ ] [Testable criterion 3]
-
-**Files to Create/Modify:**
-- `app/models/[model].py` (new/modify)
-- `app/routes/api/[route].py` (new/modify)
-- `app/services/[service].py` (new/modify)
-- `app/templates/[template].html` (new/modify)
-- `app/static/js/[module].js` (new/modify)
-- `app/static/scss/[styles].scss` (new/modify)
-- `migrations/versions/xxx_[description].py` (new)
-
-**Testing:**
-- [Test scenario 1]
-- [Test scenario 2]
-- [Edge case test]
-
-**Dependencies:** [Previous deliverable or "None"]
-**Estimated:** [X-Y hours]
-
----
-
-### 2. [Next Deliverable Name]
-
-[Same structure as above]
-
----
-
-## Database Changes
-
-### New Tables
-
-#### [table_name]
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| id | INTEGER | PK | Primary key |
-| [column] | [TYPE] | [constraints] | [description] |
-
-**Indexes:**
-- `([columns])` - [purpose]
-
-**Relationships:**
-- [Relationship description]
-
-### Modified Tables
-
-#### [existing_table_name]
-| Column | Type | Constraints | Description |
-|--------|------|-------------|-------------|
-| [new_column] | [TYPE] | [constraints] | [description] |
-
-**Migration Required:** Yes/No
-**Migration Notes:** [Special handling instructions]
-
----
-
-## API Endpoints
-
-### [Feature Area]
-| Method | Endpoint | Description | Roles |
-|--------|----------|-------------|-------|
-| GET | `/api/[resource]` | List all [resources] | All |
-| POST | `/api/[resource]` | Create [resource] | Admin, Manager |
-| GET | `/api/[resource]/<id>` | Get single [resource] | All |
-| PUT | `/api/[resource]/<id>` | Update [resource] | Admin, Manager |
-| DELETE | `/api/[resource]/<id>` | Delete [resource] | Admin |
-
-**Request/Response Formats:**
-
-#### POST /api/[resource]
-```json
-// Request
-{
-  "field1": "value",
-  "field2": 123
-}
-
-// Response (Success)
-{
-  "success": true,
-  "data": {
-    "id": 1,
-    "field1": "value"
-  }
-}
-
-// Response (Error)
-{
-  "success": false,
-  "error": {
-    "code": "ERR_[CODE]",
-    "message": "User-friendly error message"
-  }
-}
-```
-
----
-
-## UI/UX Requirements
-
-### Pages
-
-#### [Page Name]
-**URL:** `/[path]`
-**Template:** `app/templates/[path].html`
-
-**Layout:**
-```
-+----------------------------------------------------------+
-| [Page Header]                                             |
-+----------------------------------------------------------+
-| [Section 1]                  | [Section 2]               |
-| - Component A                | - Component D              |
-| - Component B                | - Component E              |
-| - Component C                |                            |
-+----------------------------------------------------------+
-```
-
-**Components:**
-- [Component 1]: [description]
-- [Component 2]: [description]
-
-**Interactions:**
-- [Interaction 1]: [behavior]
-- [Interaction 2]: [behavior]
-
-### Modals
-
-#### [Modal Name]
-**Trigger:** [How it opens]
-**Fields:** [List of fields]
-**Actions:** [Buttons and their behaviors]
-
-### SCSS Notes
-**Reuse:** [Existing SCSS to use]
-**New:** [New styles needed, if any]
-
----
+[2-3 sentence description of what this phase accomplishes and why it matters.]
 
 ## Success Criteria
 
-### Milestone 1 (After Deliverables 1-[N])
-- [ ] [Criterion 1]
-- [ ] [Criterion 2]
-- [ ] [Criterion 3]
+- [ ] [Measurable outcome 1]
+- [ ] [Measurable outcome 2]
+- [ ] [Measurable outcome 3]
 
-### Milestone 2 (After Deliverables [N]-[M])
-- [ ] [Criterion 1]
-- [ ] [Criterion 2]
+## Dependencies
 
-### Quality Gates (CRITICAL)
-- [ ] All CRUD operations tested
-- [ ] Permissions enforced correctly
-- [ ] No console errors
-- [ ] Test coverage >80%
-- [ ] CLAUDE.md patterns followed
+| Dependency | Reference | Status |
+|------------|-----------|--------|
+| [What's needed] | [ADR-XXX or /docs/dev/notes/ link] | Pending/Ready |
 
----
+## Phase Completion Criteria
 
-## Estimated Complexity
-
-**Overall:** [Low/Medium/Medium-High/High]
-
-| Deliverable | Estimate |
-|-------------|----------|
-| 1. [Name] | [X-Y hours] |
-| 2. [Name] | [X-Y hours] |
-
-**Total:** [X-Y hours] (~[N] days/weeks)
+This phase is DONE when:
+- [ ] All subphase tasks completed
+- [ ] All manual verifications passed
+- [ ] [Any phase-specific criteria]
 
 ---
 
-## Out of Scope
+## Subphase 1: [Name]
 
-**Deferred to Later Phases:**
-- [Feature 1] - [Why deferred]
-- [Feature 2] - [Why deferred]
+### Description
+[What this subphase accomplishes]
 
-**Never in Scope:**
-- [Feature 1] - [Why never]
-- [Feature 2] - [Why never]
+### Implementation Tasks
+- [ ] Task 1: [Specific, actionable description]
+- [ ] Task 2: [Specific, actionable description]
+
+### Primary Files (may expand)
+- `path/to/file1.py` - [What changes]
+- `path/to/file2.ts` - [What changes]
+
+### Edge Cases
+- [ ] Handle case when [scenario 1]
+- [ ] Handle case when [scenario 2]
+
+### Verification
+- [ ] Unit tests written and passing
+- [ ] Manual testing completed
 
 ---
 
-## Notes
+## Quality Gates
 
-### [Topic 1]
-[Important implementation notes]
+### Documentation Quality
+- [ ] YAML frontmatter complete and accurate
+- [ ] All tasks have checkbox format
+- [ ] Success criteria are measurable
+- [ ] Dependencies explicitly listed
 
-### [Topic 2]
-[Technical considerations]
+### External Validation
+- [ ] Verified through Gemini LLM (date: ___________)
 
-### Related Documentation
-- [Link to related doc 1]
-- [Link to related doc 2]
+### System Agent Validation
+- [ ] System Agent impact analysis completed (see notes below)
+- [ ] No unresolved conflicts (or documented with resolution)
+
+### Agent Review
+- [ ] Senior Developer Review completed by agent (see notes below)
+
+### Approval
+- [ ] Document status changed to "approved"
+- [ ] Ready for `/plan-execution`
+
+---
+
+### System Agent Validation
+
+> Automatically populated during planning by System Agent.
+
+**Validated:** YYYY-MM-DD
+**Recommendation:** [PROCEED|BLOCK|PROCEED WITH CAUTION]
+
+**Architecture Check:**
+- Conflicts with existing architecture: [None or describe]
+- Breaking changes identified: [None or describe]
+- Cross-system interactions: [List]
+
+**Resolved Conflicts:**
+- [Conflict 1]: [Resolution]
+- [Conflict 2]: [Resolution]
+
+**Unresolved Conflicts (if any):**
+- [Conflict]: [Awaiting user decision]
+
+---
+
+### Senior Developer Review (Agent)
+
+> Automatically populated during planning.
+
+**Reviewed:** YYYY-MM-DD
+
+**Issues Found & Fixed:**
+- [Issue 1]: [How addressed]
+- [Issue 2]: [How addressed]
+
+---
+
+## Deferred Tasks
+
+> Tasks that cannot be completed in this phase.
+
+| Task | Reason | Target Phase |
+|------|--------|--------------|
+
+---
+
+## Execution Log
+
+| Date | Subphase | Status | Notes |
+|------|----------|--------|-------|
 ```
 
 ---
 
-## QUALITY CHECKS (MANDATORY)
+## DELEGATION REFERENCE
 
-Before finalizing the phase document:
-
-### Content Completeness
-- [ ] Overview explains the "what" and "why"
-- [ ] Every deliverable has acceptance criteria
-- [ ] Every deliverable lists files to modify
-- [ ] Every deliverable has testing requirements
-- [ ] Database changes specify migration needs
-- [ ] API endpoints include request/response formats
-- [ ] UI/UX section has layout diagrams
-- [ ] Success criteria are testable
-
-### No Ambiguity
-- [ ] No "TBD" or "TODO" markers
-- [ ] No "to be determined" language
-- [ ] No vague acceptance criteria ("should work well")
-- [ ] All field names and types specified
-- [ ] All error codes registered or noted for registration
-
-### Follows Project Patterns
-- [ ] API format matches `{"success": true/false, ...}`
-- [ ] Uses existing SCSS patterns from CLAUDE.md
-- [ ] Uses existing model patterns (soft deletes, extra_data)
-- [ ] Follows route registration patterns
-- [ ] Matches existing phase document structure
-
-### Risk Identification
-- [ ] Dependencies clearly stated
-- [ ] Breaking changes identified
-- [ ] Migration risks noted
-- [ ] Performance implications considered
+| Situation | Delegate To |
+|-----------|-------------|
+| Codebase exploration | Explore agent |
+| Impact analysis | system-agent |
+| API design needed | api-designer |
+| Database changes needed | migration-planner |
+| UI/UX design needed | ui-ux-designer |
 
 ---
 
-## OUTPUT PROTOCOL
+## QUALITY CHECKLIST (Before Presenting)
 
-### Final Output Format
+Before presenting the phase document to the user, verify:
 
-After completing the phase document:
+- [ ] All tasks are specific and actionable (not vague)
+- [ ] Success criteria are measurable (not subjective)
+- [ ] Edge cases are enumerated
+- [ ] Dependencies are explicit with references
+- [ ] System Agent validation completed (no unresolved conflicts)
+- [ ] Senior Developer Review completed
+- [ ] No implementation code in the document
+- [ ] Scope is realistic for the mode (Standard/Full)
 
-```markdown
-## Phase Document Ready
-
-**Filename:** `Docs/Development-roadmap/Phase_[N]_[Name].md`
-
-**Summary:**
-- Deliverables: [count]
-- New tables: [count]
-- New API endpoints: [count]
-- Estimated hours: [range]
-
-**User Confirmation Needed:**
-- [ ] [Item 1 needing confirmation]
-- [ ] [Item 2 needing confirmation]
+**Final plan must include:**
+- Original architect design
+- System Agent validation results
+- Any resolved conflicts documented
 
 ---
 
-[Full phase document content]
+## FORBIDDEN ACTIONS
 
----
+- Writing implementation code
+- Skipping System Agent validation
+- Skipping impact analysis
+- Skipping Senior Developer Review
+- Creating phase docs for Quick mode tasks
+- Leaving vague requirements ("make it better")
+- Assuming dependencies are ready without checking
+- Proceeding to implementation with unresolved conflicts
 
-## Next Steps
-1. Review the phase document above
-2. Confirm or adjust any flagged items
-3. Save to `Docs/Development-roadmap/Phase_[N]_[Name].md`
-4. Run `/plan-execution Phase_[N]_[Name].md` to begin implementation
-```
+## REQUIRED ACTIONS
 
----
-
-## FORBIDDEN PATTERNS (-$1000 each)
-
-- Creating phase document without Explore agent context gathering
-- Leaving "TBD" or placeholder values in final output
-- Vague acceptance criteria ("should be user-friendly")
-- Missing database migration requirements
-- Skipping API request/response format specifications
-- Not identifying dependencies on existing phases
-- Producing incomplete deliverable specifications
-
----
-
-## REQUIRED PATTERNS (+$500 each)
-
-- Delegate to Explore agent before designing
-- Delegate to @architect for design work
-- Ask clarifying questions when requirements are ambiguous
-- Include testable acceptance criteria for every deliverable
-- Specify exact files to create/modify
-- Include database schema with types and constraints
-- Include API endpoint specifications with formats
-- Flag items requiring user confirmation
-- Estimate complexity for each deliverable
-
----
-
-## EXAMPLE EXECUTION
-
-### Good Execution: Notification System
-
-```
-1. Parse input: "User notification system with in-app alerts"
-2. Explore agent: Find existing User, Event models; find alert patterns in JS
-3. Clarification: "Should notifications support email or only in-app?"
-4. User: "Only in-app for now"
-5. @architect: Design notification model, API, UI components
-6. Assemble phase document with all sections
-7. Quality check: All fields complete, no TBD
-8. Output: Complete Phase_[N]_Notification_System.md
-9. Flag: "Confirm notification retention policy (30 days default?)"
-```
-
-### Bad Execution: Vague Feature
-
-```
-1. Parse input: "Add reports"
-2. Skip Explore agent (FORBIDDEN)
-3. Assume requirements (FORBIDDEN)
-4. Create incomplete document with TBD values (FORBIDDEN)
-5. No clarifying questions asked (FORBIDDEN)
-```
-
----
-
-## FINAL REMINDER
-
-Your phase document must be:
-1. **Complete** - No TBD values, all sections filled
-2. **Specific** - Exact file paths, testable criteria
-3. **Actionable** - Ready for @plan-execution to implement
-4. **Consistent** - Follows project patterns from CLAUDE.md
-
-When in doubt, ask for clarification. Incomplete requirements lead to incomplete documents.
+- Gather context before planning
+- Check Feature Map for conflicts
+- Run System Agent validation (Phase 2 of workflow)
+- Apply Senior Developer Review adversarially
+- Document all findings and fixes
+- Document System Agent validation results
+- Resolve or escalate all conflicts before presenting
+- Present clear next steps to user
